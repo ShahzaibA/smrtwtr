@@ -22,4 +22,10 @@ public class SchedulerResource {
     private List<String> days;
 
     public SchedulerResource() {}
+
+    public SchedulerResource(String startTime, int duration, List<String> days) {
+        this.startTime = startTime;
+        this.duration = duration;
+        this.days = days;
+    }
 }
