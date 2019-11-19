@@ -21,11 +21,16 @@ public class SchedulerResource {
     @NotNull(message = "You must specify which days to turn the sprinkler on.")
     private List<String> days;
 
+    @JsonProperty("stations")
+    @NotNull(message = "Need to specify the number of stations to turn on.")
+    private int stations;
+
     public SchedulerResource() {}
 
-    public SchedulerResource(String startTime, int duration, List<String> days) {
+    public SchedulerResource(String startTime, int duration, List<String> days, int stations) {
         this.startTime = startTime;
         this.duration = duration;
         this.days = days;
+        this.stations = stations;
     }
 }

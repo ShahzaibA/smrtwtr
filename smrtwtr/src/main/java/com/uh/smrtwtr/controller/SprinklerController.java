@@ -15,8 +15,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import tk.plogitech.darksky.forecast.ForecastException;
 
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,14 +28,15 @@ import java.util.stream.Collectors;
 @RestController
 public class SprinklerController {
 
-    private GpioPinDigitalOutput pin;
-    private Scheduler s;
+    private Scheduler s = new Scheduler();
 
     // list to store all gpio pins
     List<GpioPinDigitalOutput> pins = new ArrayList<>();
+    List<String> scheduleIds = new ArrayList<>();
 
     private String scheduleId;
     private int sprinkleDuration;
+    private int stations;
 
     private void initalizeGPIOPins() {
         final GpioController gpio = GpioFactory.getInstance();
@@ -81,7 +85,7 @@ public class SprinklerController {
                 .body(weatherResource);
     }
 
-    public void runSprinklers() throws InterruptedException, ForecastException {
+    public void runSprinklers(GpioPinDigitalOutput pin) throws InterruptedException, ForecastException {
         log.info("Running Sprinklers");
         DarkSkyApi darkSkyApi = new DarkSkyApi();
         JsonObject forecastJsonObject = darkSkyApi.getForecast();
@@ -91,7 +95,7 @@ public class SprinklerController {
         if(precipProbability < 30){
             pin.low();
             log.info("GPIO ON");
-            Thread.sleep(this.sprinkleDuration*1000);
+            Thread.sleep(this.sprinkleDuration*60000);
             pin.high();
             log.info("GPIO OFF");
         }
@@ -99,56 +103,66 @@ public class SprinklerController {
 
     @PostMapping("/schedule")
     public ResponseEntity schedule(@RequestBody SchedulerResource schedulerResource) {
-        this.sprinkleDuration = schedulerResource.getDuration();
-
-        // initialize gpio pin if not initialized
-        if(pin == null) {
-            // create gpio controller
-            final GpioController gpio = GpioFactory.getInstance();
-
-            // provision gpio pin #01 as an output pin and turn on
-            pin = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_02, "MyLED", PinState.HIGH);
+        // initialize gpio pins if not initialized
+        if(pins.isEmpty()) {
+            initalizeGPIOPins();
         }
+        this.sprinkleDuration = schedulerResource.getDuration();
+        this.stations = schedulerResource.getStations();
 
-        // parse user input in to cron format
-        String[] time = schedulerResource.getStartTime().split(":");
-        String minutes = time[1];
-        String hours = time[0];
-        String days = schedulerResource.getDays().stream().collect(Collectors.joining(","));
-
-        String cronTask = minutes + " " + hours + " * * " + days;
-        // creates the scheduler instance
-        s = new Scheduler();
-        // schedule a based on user input
-        scheduleId = s.schedule(cronTask, new Runnable() {
-            public void run() {
-                try {
-                    runSprinklers();
-                } catch (InterruptedException | ForecastException e) {
-                    e.printStackTrace();
-                }
+        DateTimeFormatter df = DateTimeFormatter.ofPattern("HH:mm");
+        LocalTime lt = LocalTime.parse(schedulerResource.getStartTime());
+        for(int i = 0; i < 4; i++) {
+            if(i != 0) {
+                lt = lt.plusMinutes(this.sprinkleDuration);
             }
-        });
-        // starts the scheduler
+            int stationId = i;
+            String[] time = df.format(lt).split(":");
+            String minutes = time[1];
+            String hours = time[0];
+            String days = schedulerResource.getDays().stream().collect(Collectors.joining(","));
+
+            // creates cronTask
+            String cronTask = minutes + " " + hours + " * * " + days;
+
+            // creates a scheduler instance which runs on a thread
+            scheduleId = s.schedule(cronTask, new Runnable() {
+                public void run() {
+                    try {
+                        runSprinklers(pins.get(stationId));
+                    } catch (InterruptedException | ForecastException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+            scheduleIds.add(scheduleId);
+        }
         s.start();
         return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
     @PostMapping("/schedule/cancel")
     public void cancelSchedule() {
-        s.deschedule(scheduleId);
-        s.stop();
+        Iterator<String> i = scheduleIds.iterator();
+        while (i.hasNext()) {
+            String id = i.next(); // must be called before you can call i.remove()
+            // deschedule task
+            s.deschedule(id);
+
+            i.remove();
+        }
     }
 
     @GetMapping("/schedule")
     public ResponseEntity getSchedule() {
-        SchedulingPattern schedulingPattern = s.getSchedulingPattern(scheduleId);
+        SchedulingPattern schedulingPattern = s.getSchedulingPattern(scheduleIds.get(0));
         String[] cronTask = schedulingPattern.toString().split(" ");
         String startTime =  cronTask[1] + ":" + cronTask[0];
         int duration = this.sprinkleDuration;
+        int stations = this.getStations();
         List<String> days = Arrays.stream(cronTask[4].split(",")).collect(Collectors.toList());
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(new SchedulerResource(startTime, duration, days));
+                .body(new SchedulerResource(startTime, duration, days, stations));
     }
 }
