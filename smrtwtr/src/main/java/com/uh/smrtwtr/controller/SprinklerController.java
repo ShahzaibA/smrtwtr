@@ -12,12 +12,10 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import tk.plogitech.darksky.forecast.ForecastException;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,36 +28,44 @@ public class SprinklerController {
     private GpioPinDigitalOutput pin;
     private Scheduler s;
 
+    // list to store all gpio pins
+    List<GpioPinDigitalOutput> pins = new ArrayList<>();
+
     private String scheduleId;
     private int sprinkleDuration;
 
-    @PostMapping("/on")
-    public void openValve() {
-        // initialize gpio pin if not initialized
-        if(pin == null) {
-            // create gpio controller
-            final GpioController gpio = GpioFactory.getInstance();
+    private void initalizeGPIOPins() {
+        final GpioController gpio = GpioFactory.getInstance();
+        // initialize all gpio pins
+        pins.add(gpio.provisionDigitalOutputPin(RaspiPin.GPIO_08, "GPIO_08", PinState.HIGH));
+        pins.add(gpio.provisionDigitalOutputPin(RaspiPin.GPIO_09, "GPIO_09", PinState.HIGH));
+        pins.add(gpio.provisionDigitalOutputPin(RaspiPin.GPIO_07, "GPIO_07", PinState.HIGH));
+        pins.add(gpio.provisionDigitalOutputPin(RaspiPin.GPIO_00, "GPIO_00", PinState.HIGH));
+        pins.add(gpio.provisionDigitalOutputPin(RaspiPin.GPIO_02, "GPIO_02", PinState.HIGH));
+        pins.add(gpio.provisionDigitalOutputPin(RaspiPin.GPIO_03, "GPIO_03", PinState.HIGH));
+        pins.add(gpio.provisionDigitalOutputPin(RaspiPin.GPIO_12, "GPIO_12", PinState.HIGH));
+        pins.add(gpio.provisionDigitalOutputPin(RaspiPin.GPIO_13, "GPIO_13", PinState.HIGH));
+    }
 
-            // provision gpio pin #01 as an output pin and turn on
-            pin = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_02, "MyLED", PinState.HIGH);
+    @PostMapping("/on/{stationId}")
+    public void openValve(@PathVariable int stationId) {
+        // initialize gpio pins if not initialized
+        if(pins.isEmpty()) {
+            initalizeGPIOPins();
         }
-        // turn on gpio pin #01
-        pin.low();
+        // turn on gpio pin
+        pins.get(stationId-1).low();
         log.info("GPIO ON");
     }
 
-    @PostMapping("/off")
-    public void closeValve() {
-        // initialize gpio pin if not initialized
-        if(pin == null) {
-            // create gpio controller
-            final GpioController gpio = GpioFactory.getInstance();
-
-            // provision gpio pin #01 as an output pin and turn on
-            pin = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_02, "MyLED", PinState.HIGH);
+    @PostMapping("/off/{stationId}")
+    public void closeValve(@PathVariable int stationId) {
+        // initialize gpio pins if not initialized
+        if(pins.isEmpty()) {
+            initalizeGPIOPins();
         }
-        // turn off gpio pin #01
-        pin.high();
+        // turn off gpio pin
+        pins.get(stationId-1).high();
         log.info("GPIO OFF");
     }
 
