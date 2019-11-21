@@ -85,7 +85,7 @@ public class SprinklerController {
                 .body(weatherResource);
     }
 
-    public void runSprinklers(GpioPinDigitalOutput pin) throws InterruptedException, ForecastException {
+    public void runSprinklers(int station) throws InterruptedException, ForecastException {
         log.info("Running Sprinklers");
         DarkSkyApi darkSkyApi = new DarkSkyApi();
         JsonObject forecastJsonObject = darkSkyApi.getForecast();
@@ -93,10 +93,10 @@ public class SprinklerController {
         int precipProbability = currently.get("precipProbability").getAsInt();
 
         if(precipProbability < 30){
-            pin.low();
+            pins.get(station).low();
             log.info("GPIO ON");
             Thread.sleep(this.sprinkleDuration*60000);
-            pin.high();
+            pins.get(station).high();
             log.info("GPIO OFF");
         }
     }
@@ -112,7 +112,7 @@ public class SprinklerController {
 
         DateTimeFormatter df = DateTimeFormatter.ofPattern("HH:mm");
         LocalTime lt = LocalTime.parse(schedulerResource.getStartTime());
-        for(int i = 0; i < 4; i++) {
+        for(int i = 0; i < stations; i++) {
             if(i != 0) {
                 lt = lt.plusMinutes(this.sprinkleDuration);
             }
@@ -129,7 +129,7 @@ public class SprinklerController {
             scheduleId = s.schedule(cronTask, new Runnable() {
                 public void run() {
                     try {
-                        runSprinklers(pins.get(stationId));
+                        runSprinklers(stationId);
                     } catch (InterruptedException | ForecastException e) {
                         e.printStackTrace();
                     }
