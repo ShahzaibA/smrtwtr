@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 @Data
 @Slf4j
+@CrossOrigin("*")
 @RestController
 public class SprinklerController {
 
@@ -151,7 +152,7 @@ public class SprinklerController {
 
             i.remove();
         }
-        
+
         s.stop();
     }
 
