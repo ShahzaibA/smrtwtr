@@ -151,6 +151,8 @@ public class SprinklerController {
 
             i.remove();
         }
+        
+        s.stop();
     }
 
     @GetMapping("/schedule")
