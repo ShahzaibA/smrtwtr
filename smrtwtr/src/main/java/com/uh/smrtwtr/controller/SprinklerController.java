@@ -38,6 +38,7 @@ public class SprinklerController {
     private String scheduleId;
     private int sprinkleDuration;
     private int stations;
+    private boolean mockRain = false;
 
     private void initalizeGPIOPins() {
         final GpioController gpio = GpioFactory.getInstance();
@@ -81,17 +82,24 @@ public class SprinklerController {
         JsonObject currently = forecastJsonObject.get("currently").getAsJsonObject();
         WeatherResource weatherResource = new Gson().fromJson(currently, WeatherResource.class);
 
+
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(weatherResource);
     }
 
     public void runSprinklers(int station) throws InterruptedException, ForecastException {
-        log.info("Running Sprinklers");
-        DarkSkyApi darkSkyApi = new DarkSkyApi();
-        JsonObject forecastJsonObject = darkSkyApi.getForecast();
-        JsonObject currently = forecastJsonObject.get("currently").getAsJsonObject();
-        int precipProbability = currently.get("precipProbability").getAsInt();
+        int precipProbability = 0;
+        if(mockRain){
+            precipProbability = 40;
+        }
+        else {
+            log.info("Running Sprinklers");
+            DarkSkyApi darkSkyApi = new DarkSkyApi();
+            JsonObject forecastJsonObject = darkSkyApi.getForecast();
+            JsonObject currently = forecastJsonObject.get("currently").getAsJsonObject();
+            precipProbability = currently.get("precipProbability").getAsInt();
+        }
 
         if(precipProbability < 30){
             pins.get(station).low();
@@ -167,5 +175,14 @@ public class SprinklerController {
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new SchedulerResource(startTime, duration, days, stations));
+    }
+
+    @PostMapping("/mockrain")
+    public ResponseEntity mockRain() {
+        this.mockRain = !mockRain;
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(this.mockRain);
     }
 }
