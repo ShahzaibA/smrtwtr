@@ -104,7 +104,7 @@ public class SprinklerController {
         if(precipProbability < 30){
             pins.get(station).low();
             log.info("GPIO ON");
-            Thread.sleep(this.sprinkleDuration*60000);
+            Thread.sleep(this.sprinkleDuration*60000 + 400);
             pins.get(station).high();
             log.info("GPIO OFF");
         }
@@ -181,6 +181,13 @@ public class SprinklerController {
     public ResponseEntity mockRain() {
         this.mockRain = !mockRain;
 
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(this.mockRain);
+    }
+
+    @GetMapping("/mockrain")
+    public ResponseEntity getMockRain() {
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(this.mockRain);
